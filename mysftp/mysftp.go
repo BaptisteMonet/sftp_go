@@ -8,7 +8,6 @@ import (
 	"log"
 	"net"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -75,31 +74,23 @@ func (sc *SftpClient) connect() (err error) {
 
 // Upload file to sftp server
 func (sc *SftpClient) Put(dataLocalFile, remoteFileName string) (err error) {
-	getWorkingDirectory, err := os.Getwd()
-
-	log.Println("put getWorkingDirectory + err =>", getWorkingDirectory, err)
-	log.Println("put dataLocalFile =>", dataLocalFile)
-	log.Println("put remoteFileName =>", remoteFileName)
-
 	// // Make remote directories recursion
-	parent := filepath.Dir(remoteFileName)
-	path := string(filepath.Separator)
-	dirs := strings.Split(parent, path)
-	for _, dir := range dirs {
-		path = filepath.Join(path, dir)
-		log.Println("put path =>", path)
-		sc.Mkdir(path)
-	}
+	// parent := filepath.Dir(remoteFileName)
+	// path := string(filepath.Separator)
+	// dirs := strings.Split(parent, path)
+	// for _, dir := range dirs {
+	// 	path = filepath.Join(path, dir)
+	// 	log.Println("put path =>", path)
+	// 	sc.Mkdir(path)
+	// }
 
 	createEmptySftpFileFromRemoteFile, createEmptySftpFileErr := sc.Create("sftpuser/" + remoteFileName)
-	log.Println("create file + createEmptySftpFileErr =>", createEmptySftpFileFromRemoteFile, createEmptySftpFileErr)
 	if createEmptySftpFileErr != nil {
 		return
 	}
 	defer createEmptySftpFileFromRemoteFile.Close()
 
 	openRemoteFileForCopy, openRemoteFileErr := os.Open(dataLocalFile)
-	log.Println("openRemoteFileForCopy +openRemoteFileErr =>", openRemoteFileForCopy, openRemoteFileErr)
 	if openRemoteFileErr != nil {
 		return
 	}
@@ -117,20 +108,27 @@ func (sc *SftpClient) Put(dataLocalFile, remoteFileName string) (err error) {
 
 // Download file from sftp server
 func (sc *SftpClient) Get(remoteFile, localFile string) (err error) {
-	openLocalFile, err := sc.Open(remoteFile)
+	openLocalFile, err := sc.Open("sftpuser/" + remoteFile)
 	if err != nil {
+		log.Println("openLocalFile err => ", err)
 		return
 	}
 	defer openLocalFile.Close()
-
+	os.Chdir("./downloadFolder")
 	createLocalFileFromRemoteFile, err := os.Create(localFile)
-
 	if err != nil {
+		log.Println("createLocalFileFromRemoteFile err => ", err)
 		return
 	}
 	defer createLocalFileFromRemoteFile.Close()
 
 	_, err = io.Copy(createLocalFileFromRemoteFile, openLocalFile)
+
+	if err != nil {
+		log.Println("Copy err => ", err)
+		return
+	}
+
 	return
 }
 

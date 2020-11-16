@@ -3,10 +3,13 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"mysftp"
 	"net/http"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi"
@@ -24,7 +27,7 @@ func init() {
 func routers() *chi.Mux {
 	router.Get("/ping", ping)
 	router.Post("/connect", connectToSftp)
-	//router.Get("/download", Get)
+	router.Get("/download", download)
 	router.Put("/upload", upload)
 
 	return router
@@ -77,9 +80,6 @@ func connectToSftp(w http.ResponseWriter, req *http.Request) {
 }
 
 func upload(w http.ResponseWriter, req *http.Request) {
-
-	fmt.Println("File Upload Endpoint Hit")
-
 	// Parse our multipart form, 10 << 20 specifies a maximum
 	// upload of 10 MB files.
 	req.ParseMultipartForm(10 << 20)
@@ -88,32 +88,39 @@ func upload(w http.ResponseWriter, req *http.Request) {
 	// the Header and the size of the file
 	remoteFile, remoteFileHeader, remoteFileErr := req.FormFile("remoteFile")
 	if remoteFileErr != nil {
-		fmt.Println("Error Retrieving the File")
-		fmt.Println(remoteFileErr)
+		fmt.Println("Error Retrieving the File", remoteFileErr)
 		return
 	}
 	defer remoteFile.Close()
-	fmt.Printf("Uploaded File: %+v\n", remoteFileHeader.Filename)
-	fmt.Printf("File Size: %+v\n", remoteFileHeader.Size)
-	fmt.Printf("MIME Header: %+v\n", remoteFileHeader.Header)
-
-	createTemporaryFile, createTemporaryFileErr := ioutil.TempFile("./tempFolder", remoteFileHeader.Filename)
-	fmt.Printf("createTemporaryFile: %+v\n", createTemporaryFile.Name())
+	createTemporaryFile, createTemporaryFileErr := ioutil.TempFile("./uploadFolder", remoteFileHeader.Filename)
 	if createTemporaryFileErr != nil {
 		fmt.Println(createTemporaryFileErr)
 	}
 	defer createTemporaryFile.Close()
-
 	readUploadedFileAndConvertIntoByteArray, readUploadedErr := ioutil.ReadAll(remoteFile)
-
 	if readUploadedErr != nil {
 		fmt.Println(readUploadedErr)
 	}
-
 	createTemporaryFile.Write(readUploadedFileAndConvertIntoByteArray)
-
 	mySftpDataConnection.Put(createTemporaryFile.Name(), remoteFileHeader.Filename)
 
+}
+
+func download(w http.ResponseWriter, req *http.Request) {
+	os.Chdir("./downloadFolder")
+	req.ParseForm()
+	remoteFileName := req.FormValue("remoteFileName")
+	mySftpDataConnection.Get(remoteFileName, remoteFileName)
+	attachment := fmt.Sprintf("attachment; filename=" + strconv.Quote(remoteFileName))
+	w.Header().Set("Content-Disposition", attachment)
+	w.Header().Set("Content-Type", req.Header.Get("Content-Type"))
+	openLocalFileUploaded, openLocalFileUploadedErr := os.Open(remoteFileName)
+	if openLocalFileUploadedErr != nil {
+		log.Println("openLocalFileUploadedErr open before send dl=> ", openLocalFileUploadedErr)
+		return
+	}
+	io.Copy(w, openLocalFileUploaded)
+	defer os.Remove(remoteFileName) // deleteFile uploaded on server before transfer to sftp
 }
 
 func main() {
