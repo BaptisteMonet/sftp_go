@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -37,7 +38,6 @@ func CreateNewConnection(host, user, password string, port int) (client *SftpCli
 		password: password,
 		port:     port,
 	}
-	log.Println(client)
 	if err = client.connect(); nil != err {
 		return nil, err
 	}
@@ -56,7 +56,6 @@ func (sc *SftpClient) connect() (err error) {
 	// connet to ssh
 	addr := fmt.Sprintf("%s:%d", sc.host, sc.port)
 	conn, err := ssh.Dial("tcp", addr, config)
-	log.Println("connection =>", conn, err)
 	if err != nil {
 		log.Println("connection Err => %s", err)
 		return err
@@ -74,24 +73,28 @@ func (sc *SftpClient) connect() (err error) {
 
 // Upload file to sftp server
 func (sc *SftpClient) Put(dataLocalFile, remoteFileName string) (err error) {
+
 	// // Make remote directories recursion
-	// parent := filepath.Dir(remoteFileName)
-	// path := string(filepath.Separator)
-	// dirs := strings.Split(parent, path)
-	// for _, dir := range dirs {
-	// 	path = filepath.Join(path, dir)
-	// 	log.Println("put path =>", path)
-	// 	sc.Mkdir(path)
-	// }
+	parent := filepath.Dir(remoteFileName)
+	path := string(filepath.Separator)
+	dirs := strings.Split(parent, path)
+	for _, dir := range dirs {
+		path = filepath.Join(path, dir)
+		log.Println("put path =>", path)
+		sc.Mkdir(path)
+	}
 
 	createEmptySftpFileFromRemoteFile, createEmptySftpFileErr := sc.Create("sftpuser/" + remoteFileName)
 	if createEmptySftpFileErr != nil {
+		log.Printf("ou la")
 		return
 	}
 	defer createEmptySftpFileFromRemoteFile.Close()
 
 	openRemoteFileForCopy, openRemoteFileErr := os.Open(dataLocalFile)
 	if openRemoteFileErr != nil {
+		log.Printf("here ?")
+		log.Println("openRemoteFileErr =>", openRemoteFileErr)
 		return
 	}
 	defer openRemoteFileForCopy.Close()
@@ -99,6 +102,7 @@ func (sc *SftpClient) Put(dataLocalFile, remoteFileName string) (err error) {
 	copyOpenRemoteFileToEmptyFile, err := io.Copy(createEmptySftpFileFromRemoteFile, openRemoteFileForCopy)
 	if err != nil {
 		log.Fatal(err)
+		log.Printf("et la ?")
 	}
 	fmt.Printf("%d copyOpenRemoteFileToEmptyFile copied\n", copyOpenRemoteFileToEmptyFile)
 
