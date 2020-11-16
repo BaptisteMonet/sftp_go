@@ -86,14 +86,12 @@ func (sc *SftpClient) Put(dataLocalFile, remoteFileName string) (err error) {
 
 	createEmptySftpFileFromRemoteFile, createEmptySftpFileErr := sc.Create("sftpuser/" + remoteFileName)
 	if createEmptySftpFileErr != nil {
-		log.Printf("ou la")
 		return
 	}
 	defer createEmptySftpFileFromRemoteFile.Close()
 
 	openRemoteFileForCopy, openRemoteFileErr := os.Open(dataLocalFile)
 	if openRemoteFileErr != nil {
-		log.Printf("here ?")
 		log.Println("openRemoteFileErr =>", openRemoteFileErr)
 		return
 	}
@@ -102,7 +100,6 @@ func (sc *SftpClient) Put(dataLocalFile, remoteFileName string) (err error) {
 	copyOpenRemoteFileToEmptyFile, err := io.Copy(createEmptySftpFileFromRemoteFile, openRemoteFileForCopy)
 	if err != nil {
 		log.Fatal(err)
-		log.Printf("et la ?")
 	}
 	fmt.Printf("%d copyOpenRemoteFileToEmptyFile copied\n", copyOpenRemoteFileToEmptyFile)
 

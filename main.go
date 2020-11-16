@@ -100,22 +100,16 @@ func upload(w http.ResponseWriter, req *http.Request) {
 	}
 	defer remoteFile.Close()
 
-	fmt.Printf("Uploaded File: %+v\n", remoteFileHeader.Filename)
-	fmt.Printf("File Size: %+v\n", remoteFileHeader.Size)
-	fmt.Printf("MIME Header: %+v\n", remoteFileHeader.Header)
-
 	createTemporaryFile, createTemporaryFileErr := ioutil.TempFile("./uploadFolder", remoteFileHeader.Filename)
 
 	if createTemporaryFileErr != nil {
 		fmt.Println("createTemporaryFileErr", createTemporaryFileErr)
-		log.Printf("la")
 	}
 	fmt.Printf("tempFile: %+v\n", createTemporaryFile.Name())
 	defer createTemporaryFile.Close()
 	readUploadedFileAndConvertIntoByteArray, readUploadedErr := ioutil.ReadAll(remoteFile)
 	if readUploadedErr != nil {
 		fmt.Println(readUploadedErr)
-		log.Printf("la")
 	}
 	createTemporaryFile.Write(readUploadedFileAndConvertIntoByteArray)
 	mySftpDataConnection.Put(createTemporaryFile.Name(), remoteFileHeader.Filename)
