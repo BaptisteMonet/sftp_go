@@ -22,8 +22,8 @@ func init() {
 }
 
 func routers() *chi.Mux {
-	router.Get("/", ping)
-	router.Post("/newConn", testPost)
+	router.Get("/ping", ping)
+	router.Post("/connect", connectToSftp)
 	//router.Get("/download", Get)
 	router.Put("/upload", upload)
 
@@ -57,22 +57,22 @@ type Post struct {
 
 var post Post
 
-var mysftpTemp *mysftp.SftpClient
+var mySftpDataConnection *mysftp.SftpClient
 var errs error
 
-func testPost(w http.ResponseWriter, req *http.Request) {
+func connectToSftp(w http.ResponseWriter, req *http.Request) {
 
-	err := json.NewDecoder(req.Body).Decode(&post)
-	if err != nil {
-		log.Printf("error decoding sakura response: %v", err)
-		if e, ok := err.(*json.SyntaxError); ok {
+	newDecoderErr := json.NewDecoder(req.Body).Decode(&post)
+	if newDecoderErr != nil {
+		log.Printf("error decoding sakura response: %v", newDecoderErr)
+		if e, ok := newDecoderErr.(*json.SyntaxError); ok {
 			log.Printf("syntax error at byte offset %d", e.Offset)
 		}
 		log.Printf("sakura response: %q", post.Host)
 
 	}
 	log.Println(post.Host)
-	mysftpTemp, errs = mysftp.NewConn(post.Host, post.User, post.Password, post.Port)
+	mySftpDataConnection, errs = mysftp.CreateNewConnection(post.Host, post.User, post.Password, post.Port)
 
 }
 
@@ -86,37 +86,33 @@ func upload(w http.ResponseWriter, req *http.Request) {
 	// FormFile returns the first file for the given key `myFile`
 	// it also returns the FileHeader so we can get the Filename,
 	// the Header and the size of the file
-	file, handler, err := req.FormFile("remoteFile")
-	if err != nil {
+	remoteFile, remoteFileHeader, remoteFileErr := req.FormFile("remoteFile")
+	if remoteFileErr != nil {
 		fmt.Println("Error Retrieving the File")
-		fmt.Println(err)
+		fmt.Println(remoteFileErr)
 		return
 	}
-	defer file.Close()
-	fmt.Printf("Uploaded File: %+v\n", handler.Filename)
-	fmt.Printf("File Size: %+v\n", handler.Size)
-	fmt.Printf("MIME Header: %+v\n", handler.Header)
+	defer remoteFile.Close()
+	fmt.Printf("Uploaded File: %+v\n", remoteFileHeader.Filename)
+	fmt.Printf("File Size: %+v\n", remoteFileHeader.Size)
+	fmt.Printf("MIME Header: %+v\n", remoteFileHeader.Header)
 
-	// Create a temporary file within our mysftpTemp-images directory that follows
-	// a particular naming pattern
-	tempFile, err := ioutil.TempFile("./tempFolder", handler.Filename)
-	fmt.Printf("tempFile: %+v\n", tempFile.Name())
-	if err != nil {
-		fmt.Println(err)
+	createTemporaryFile, createTemporaryFileErr := ioutil.TempFile("./tempFolder", remoteFileHeader.Filename)
+	fmt.Printf("createTemporaryFile: %+v\n", createTemporaryFile.Name())
+	if createTemporaryFileErr != nil {
+		fmt.Println(createTemporaryFileErr)
 	}
-	defer tempFile.Close()
+	defer createTemporaryFile.Close()
 
-	// read all of the contents of our uploaded file into a
-	// byte array
-	fileBytes, err := ioutil.ReadAll(file)
+	readUploadedFileAndConvertIntoByteArray, readUploadedErr := ioutil.ReadAll(remoteFile)
 
-	if err != nil {
-		fmt.Println(err)
+	if readUploadedErr != nil {
+		fmt.Println(readUploadedErr)
 	}
-	// write this byte array to our temporary file
-	tempFile.Write(fileBytes)
 
-	mysftpTemp.Put(tempFile.Name(), handler.Filename)
+	createTemporaryFile.Write(readUploadedFileAndConvertIntoByteArray)
+
+	mySftpDataConnection.Put(createTemporaryFile.Name(), remoteFileHeader.Filename)
 
 }
 

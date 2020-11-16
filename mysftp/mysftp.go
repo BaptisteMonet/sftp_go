@@ -22,10 +22,8 @@ type SftpClient struct {
 	*sftp.Client
 }
 
-const sshTurstedKey = "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBN8nr6yUiSDLaAjbgtdBjJtn6xvnDbeAU7AbW76Li0Ht29Tc4tWWJZ8puOpPwu2/YMZCRn15OVQlz3XtH6JqClw="
-
 // Create a new SFTP connection by given parameters
-func NewConn(host, user, password string, port int) (client *SftpClient, err error) {
+func CreateNewConnection(host, user, password string, port int) (client *SftpClient, err error) {
 	switch {
 	case `` == strings.TrimSpace(host),
 		`` == strings.TrimSpace(user),
@@ -61,6 +59,7 @@ func (sc *SftpClient) connect() (err error) {
 	conn, err := ssh.Dial("tcp", addr, config)
 	log.Println("connection =>", conn, err)
 	if err != nil {
+		log.Println("connection Err => %s", err)
 		return err
 	}
 
@@ -75,15 +74,15 @@ func (sc *SftpClient) connect() (err error) {
 }
 
 // Upload file to sftp server
-func (sc *SftpClient) Put(localFile, remoteFile string) (err error) {
-	nameDir, err := os.Getwd()
+func (sc *SftpClient) Put(dataLocalFile, remoteFileName string) (err error) {
+	getWorkingDirectory, err := os.Getwd()
 
-	log.Println("put nameDir + err =>", nameDir, err)
-	log.Println("put localFile =>", localFile)
-	log.Println("put remoteFile =>", remoteFile)
+	log.Println("put getWorkingDirectory + err =>", getWorkingDirectory, err)
+	log.Println("put dataLocalFile =>", dataLocalFile)
+	log.Println("put remoteFileName =>", remoteFileName)
 
-	// Make remote directories recursion
-	parent := filepath.Dir(remoteFile)
+	// // Make remote directories recursion
+	parent := filepath.Dir(remoteFileName)
 	path := string(filepath.Separator)
 	dirs := strings.Split(parent, path)
 	for _, dir := range dirs {
@@ -92,66 +91,54 @@ func (sc *SftpClient) Put(localFile, remoteFile string) (err error) {
 		sc.Mkdir(path)
 	}
 
-	dstFile, err := sc.Create("sftpuser/" + remoteFile)
-	log.Println("create file + err =>", dstFile, err)
-	if err != nil {
+	createEmptySftpFileFromRemoteFile, createEmptySftpFileErr := sc.Create("sftpuser/" + remoteFileName)
+	log.Println("create file + createEmptySftpFileErr =>", createEmptySftpFileFromRemoteFile, createEmptySftpFileErr)
+	if createEmptySftpFileErr != nil {
 		return
 	}
-	defer dstFile.Close()
+	defer createEmptySftpFileFromRemoteFile.Close()
 
-	srcFile, err := os.Open(localFile)
-	log.Println("srcFile +err =>", srcFile, err)
-	if err != nil {
+	openRemoteFileForCopy, openRemoteFileErr := os.Open(dataLocalFile)
+	log.Println("openRemoteFileForCopy +openRemoteFileErr =>", openRemoteFileForCopy, openRemoteFileErr)
+	if openRemoteFileErr != nil {
 		return
 	}
-	// defer srcFile.Close()
+	defer openRemoteFileForCopy.Close()
 
-	bytes, err := io.Copy(dstFile, srcFile)
+	copyOpenRemoteFileToEmptyFile, err := io.Copy(createEmptySftpFileFromRemoteFile, openRemoteFileForCopy)
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("%d bytes copied\n", bytes)
-	defer os.Remove(localFile) // clean up
+	fmt.Printf("%d copyOpenRemoteFileToEmptyFile copied\n", copyOpenRemoteFileToEmptyFile)
+
+	defer os.Remove(dataLocalFile) // deleteFile uploaded on server before transfer to sftp
 	return
 }
 
 // Download file from sftp server
 func (sc *SftpClient) Get(remoteFile, localFile string) (err error) {
-	srcFile, err := sc.Open(remoteFile)
+	openLocalFile, err := sc.Open(remoteFile)
 	if err != nil {
 		return
 	}
-	defer srcFile.Close()
+	defer openLocalFile.Close()
 
-	dstFile, err := os.Create(localFile)
+	createLocalFileFromRemoteFile, err := os.Create(localFile)
 
 	if err != nil {
 		return
 	}
-	defer dstFile.Close()
+	defer createLocalFileFromRemoteFile.Close()
 
-	_, err = io.Copy(dstFile, srcFile)
+	_, err = io.Copy(createLocalFileFromRemoteFile, openLocalFile)
 	return
 }
 
 // SSH Key-strings
 func trustedHostKeyCallback(trustedKey string) ssh.HostKeyCallback {
 
-	// if trustedKey == "" {
-	// 	return func(_ string, _ net.Addr, k ssh.PublicKey) error {
-	// 		log.Println("k =>", k)
-	// 		log.Printf("WARNING: SSH-key verification is *NOT* in effect: to fix, add this trustedKey: %q", keyString(k))
-	// 		return nil
-	// 	}
-	// }
-
 	return func(_ string, _ net.Addr, k ssh.PublicKey) error {
-		// ks :=
 		keyString(k)
-		// if trustedKey != ks {
-		// 	return fmt.Errorf("SSH-key verification: expected %q but got %q", trustedKey, ks)
-		// }
-
 		return nil
 	}
 }
