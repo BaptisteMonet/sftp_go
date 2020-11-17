@@ -58,6 +58,11 @@ type Post struct {
 	Port     int    `json:"port"`
 }
 
+type fileStruct struct {
+	FileName string
+	FileSize int64
+}
+
 var post Post
 
 var mySftpDataConnection *mysftp.SftpClient
@@ -77,6 +82,22 @@ func connectToSftp(w http.ResponseWriter, req *http.Request) {
 	log.Println(post.Host)
 	mySftpDataConnection, errs = mysftp.CreateNewConnection(post.Host, post.User, post.Password, post.Port)
 
+	var fileNames []fileStruct
+
+	files, err := ioutil.ReadDir("./sftpuser")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for _, f := range files {
+		log.Println(f.Name(), f.Size())
+		fileNames = append(fileNames, fileStruct{f.Name(), f.Size()})
+
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	// get a payload p := Payload{d}
+	json.NewEncoder(w).Encode(fileNames)
 }
 
 func upload(w http.ResponseWriter, req *http.Request) {
